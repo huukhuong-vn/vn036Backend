@@ -4,6 +4,9 @@ import {
   upload,
   handleCreateNewUser,
   handleDeleteUsers,
+  handleExportUsersAvatars,
+  getUsers,
+  handleExportUsers,
 } from '../controllers/userController';
 import authMiddleware from '../middleware/auth.js';
 // Import necessary modules
@@ -18,8 +21,11 @@ let initWebRoutes = (app) => {
   router.get('/', homeController.getHomePage);
   router.get('/about', homeController.getAboutPage);
   router.post('/api/register', upload, handleCreateNewUser);
+  // API route to get users
 
   // Login route should not require authMiddleware
+  router.get('/api/users', authMiddleware, getUsers);
+
   router.post('/login', async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -37,6 +43,12 @@ let initWebRoutes = (app) => {
       res.status(500).json({ message: 'Internal server error' });
     }
   });
+  router.get('/api/users/export', authMiddleware, handleExportUsers);
+  router.post(
+    '/api/users/exportUsersAvatar',
+    authMiddleware,
+    handleExportUsersAvatars
+  );
   router.post('/api/users/delete', authMiddleware, handleDeleteUsers);
 
   return app.use('/', router);
