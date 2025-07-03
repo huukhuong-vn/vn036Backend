@@ -1,13 +1,12 @@
-import { upload, createNewUser } from '../services/CRUDservics';
-import db from '../models/index.js';
-import fs from 'fs';
-import archiver from 'archiver';
-import path from 'path';
+const { upload, createNewUser } = require('../services/CRUDservics');
+const db = require('../models/index.js');
+const fs = require('fs');
+const archiver = require('archiver');
+const path = require('path');
 const exceljs = require('exceljs');
 
 const getUsers = async (req, res) => {
   try {
-    // Lấy danh sách người dùng từ cơ sở dữ liệu
     const users = await db.User.findAll();
     res.status(200).json({
       errCode: 0,
@@ -26,15 +25,9 @@ const getUsers = async (req, res) => {
 
 let handleCreateNewUser = async (req, res) => {
   try {
-    // Lấy dữ liệu từ request body
     let data = req.body;
-
-    // Xử lý upload file avatar nếu có
     const avatarPath = req.file ? `/uploads/${req.file.filename}` : null;
-    // Gọi hàm tạo người dùng mới
     let response = await createNewUser(data, avatarPath);
-
-    // Trả về kết quả
     return res.status(200).json(response);
   } catch (error) {
     console.error('Error creating user:', error);
@@ -49,31 +42,21 @@ let handleCreateNewUser = async (req, res) => {
 const handleDeleteUsers = async (req, res) => {
   try {
     const { ids } = req.body;
-
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ message: 'Danh sách ID không hợp lệ' });
     }
-
-    // Xóa các file avatar tương ứng nếu có
     for (const id of ids) {
       const user = await db.User.findByPk(id);
       if (user && user.avatar) {
         const fileName = user.avatar.replace('/uploads/', '');
-        const filePath = path.join(
-          process.cwd(),
-          'server',
-          'uploads',
-          fileName
-        );
+        const filePath = path.join(process.cwd(), 'uploads', fileName);
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
         }
       }
     }
     const result = await db.User.destroy({
-      where: {
-        id: ids,
-      },
+      where: { id: ids },
     });
     if (result === 0) {
       return res
@@ -90,30 +73,26 @@ const handleDeleteUsers = async (req, res) => {
 };
 
 const handleExportUsersAvatars = async (req, res) => {
-  const { ids } = req.body; // Array of user IDs
+  const { ids } = req.body;
   try {
-    const users = await db.User.findAll({
-      where: { id: ids },
-    });
-
+    const users = await db.User.findAll({ where: { id: ids } });
     const archive = archiver('zip', { zlib: { level: 9 } });
-    // res.set({
-    //   'Content-Type': 'application/zip',
-    //   'Content-Disposition': 'attachment; filename="avatars.zip"',
-    // });
-    res.attachment('avatars.zip');
 
+    res.attachment('avatars.zip');
     archive.pipe(res);
 
     users.forEach((user) => {
-      const filename = path.basename(user.avatar);
+      if (!user.avatar) return;
+
+      const filename = path.basename(user.avatar); // lấy "abc.jpg" từ "/uploads/abc.jpg"
       const filepath = path.join(__dirname, '../uploads', filename);
+
       if (fs.existsSync(filepath)) {
         archive.file(filepath, { name: filename });
       }
     });
 
-    archive.finalize();
+    await archive.finalize();
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error creating zip file' });
@@ -156,11 +135,38 @@ const handleExportUsers = async (req, res) => {
   }
 };
 
+const handleConfirm = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'Danh sách ID không hợp lệ' });
+    }
+    for (const id of ids) {
+      const user = await db.User.findByPk(id);
+      if (user) {
+        let prePaid = user.Paid;
+        let newPaid = !prePaid;
+        let newUserPaid = { Paid: newPaid };
+        const update = await db.User.update(newUserPaid, { where: { id } });
+      }
+    }
+
+    res.status(200).json({
+      message: `đã thay đổi trạng thái`,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Lỗi khi thay đổi trạng thái thanh toán', error });
+  }
+};
+
 module.exports = {
   handleCreateNewUser: handleCreateNewUser,
   handleDeleteUsers: handleDeleteUsers,
-  upload: upload.single('avatar'), // Đảm bảo rằng 'avatar' là tên của trường trong form
+  upload: upload.single('avatar'),
   handleExportUsersAvatars: handleExportUsersAvatars,
   getUsers: getUsers,
   handleExportUsers: handleExportUsers,
+  handleConfirm: handleConfirm,
 };

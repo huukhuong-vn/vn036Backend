@@ -1,35 +1,25 @@
-import db from '../models/index.js';
-import multer from 'multer';
-import path from 'path';
+const db = require('../models/index.js');
+const multer = require('multer');
+const path = require('path');
 
-const __dirname = path.dirname(__filename);
-
+// Dùng __dirname mặc định, KHÔNG cần tự khai báo lại
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads')); // thư mục lưu file (relative to project)
+    // Đảm bảo lưu file vào server/uploads (không phải src/uploads)
+    cb(null, path.join(__dirname, '../../uploads'));
   },
   filename: function (req, file, cb) {
     const hoTen = req.body.fullName || 'unknown';
     const ngaySinh = req.body.dateBirth || 'unknown';
     const extension = path.extname(file.originalname);
 
-    // Chuyển họ tên thành dạng không dấu + lowercase + bỏ khoảng trắng
-    // và thêm ngày sinh vào tên file để đảm bảo tính duy nhất
-    // Chỉ sử dụng họ tên để tạo tên file duy nhất
-    // Nếu có ngày sinh, có thể thêm vào tên file nếu cần
-    // Ví dụ: "Nguyen Van A_1990-01-01.jpg"
-    const cleanBirth = ngaySinh
-      .normalize('NFD')
-      .replace('-', '') // thay dấu gạch ngang bằng khoảng trắng
-      .replace('-', '') // thay dấu gạch ngang bằng khoảng trắng
-      .replace('/', '') // thay dấu gạch chéo bằng khoảng trắng
-      .replace('/', ''); // thay dấu gạch chéo bằng khoảng trắng
+    const cleanBirth = ngaySinh.normalize('NFD').replace(/[-/]/g, '');
 
     const cleanName = hoTen
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // bỏ dấu
-      .replace(/\s+/g, '_') // thay space bằng _
-      .toLowerCase(); // lowercase
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_')
+      .toLowerCase();
     const uniqueSuffix = Date.now();
     cb(null, `${cleanName}_${cleanBirth}_${uniqueSuffix}${extension}`);
   },
@@ -37,8 +27,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Pass avatarPath as a parameter from your controller/route
-let createNewUser = async (data, avatarPath = null) => {
+const createNewUser = async (data, avatarPath = null) => {
   return new Promise(async (resolve, reject) => {
     let dataUser = { ...data, avatar: avatarPath };
     try {
@@ -53,4 +42,4 @@ let createNewUser = async (data, avatarPath = null) => {
   });
 };
 
-export { upload, createNewUser };
+module.exports = { upload, createNewUser };
